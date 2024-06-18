@@ -1,0 +1,14 @@
+{
+  "Plugin-Class": "org.efly.PluginLoader",
+  "Name": "NCP Efly",
+  "Version": "${plugin_version}",
+  "Description": "UpdatedNCP Efly",
+  "Authors": [
+    "John200410",
+    "xyzbtw ported it to a plugin"
+  ],
+  "Minecraft-Versions": [
+    "1.20.4",
+    "1.20.6"
+  ]
+}
