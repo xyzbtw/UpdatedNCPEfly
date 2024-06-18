@@ -50,7 +50,7 @@ public class NCPElytraFly extends ToggleableModule {
      */
     private final BooleanSetting takeOff = new BooleanSetting("TakeOff", true);
     private final BooleanSetting takeOffWaitForDescend = new BooleanSetting("Descending", true);
-    private final NumberSetting<Float> takeOffTimerSpeed = new NumberSetting<>("Timer", 1f, 0.05f, 1f).incremental(0.05f);
+    private final NumberSetting<Float> takeOffTimerSpeed = new NumberSetting<>("Timer", 0.15f, 0.05f, 1f).incremental(0.05f);
 
     private final BooleanSetting autoRedeploy = new BooleanSetting("AutoRedeploy", true);
     private final BooleanSetting redeployOnLag = new BooleanSetting("DeployOnLag", true);
@@ -63,8 +63,8 @@ public class NCPElytraFly extends ToggleableModule {
     private final BooleanSetting rubberbandResetSpeed = new BooleanSetting("ResetSpeedRubberband", true);
     private final BooleanSetting rubberbandMotionCancel = new BooleanSetting("CancelMotionRubberband", true);
 
-    private final NumberSetting<Double> speed = new NumberSetting<>("Speed", 6d, 0.1d, 10d).incremental(0.1d);
-    private final BooleanSetting speedBoost = new BooleanSetting("SpeedBoost", true);
+    private final NumberSetting<Double> speed = new NumberSetting<>("Speed", 3d, 0.1d, 10d).incremental(0.1d);
+    private final BooleanSetting speedBoost = new BooleanSetting("SpeedBoost", false);
     private final NumberSetting<Double> boostValue = new NumberSetting<>("BoostValue", 0.03d, 0.01d, 0.1d);
     private final NumberSetting<Double> speedBoostDelay = new NumberSetting<>("BoostDelay", 1.5d, 0.1d, 2d).incremental(0.1d);
 
