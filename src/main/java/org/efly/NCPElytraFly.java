@@ -18,7 +18,6 @@ import org.rusherhack.client.api.events.player.EventPlayerUpdate;
 import org.rusherhack.client.api.feature.module.ModuleCategory;
 import org.rusherhack.client.api.feature.module.ToggleableModule;
 import org.rusherhack.client.api.utils.ChatUtils;
-import org.rusherhack.client.api.utils.InventoryUtils;
 import org.rusherhack.client.api.utils.PlayerUtils;
 import org.rusherhack.core.event.stage.Stage;
 import org.rusherhack.core.event.subscribe.Subscribe;
@@ -38,6 +37,7 @@ public class NCPElytraFly extends ToggleableModule {
                 takeOff,
                 autoRedeploy,
                 useTimer,
+                pitch,
                 rubberbandResetSpeed,
                 rubberbandMotionCancel,
                 speed,
@@ -51,10 +51,11 @@ public class NCPElytraFly extends ToggleableModule {
     private final BooleanSetting takeOff = new BooleanSetting("TakeOff", true);
     private final BooleanSetting takeOffWaitForDescend = new BooleanSetting("Descending", true);
     private final NumberSetting<Float> takeOffTimerSpeed = new NumberSetting<>("Timer", 0.15f, 0.05f, 1f).incremental(0.05f);
+    private final NumberSetting<Float> pitch = new NumberSetting<>("Pitch", -4f, -6f, 6f).incremental(0.05f);
 
     private final BooleanSetting autoRedeploy = new BooleanSetting("AutoRedeploy", true);
     private final BooleanSetting redeployOnLag = new BooleanSetting("DeployOnLag", true);
-    private final BooleanSetting autoRedeployWait = new BooleanSetting("Wait", false);
+    private final BooleanSetting autoRedeployWait = new BooleanSetting("Wait", true);
     private final NumberSetting<Float> autoRedeployTimerSpeed = new NumberSetting<>("Timer", 0.1f, 0.05f, 1f).incremental(0.05f);
     private final NumberSetting<Double> autoRedeployDelay = new NumberSetting<>("Delay", 0.5d, 0.05d, 2d);
 
@@ -75,10 +76,11 @@ public class NCPElytraFly extends ToggleableModule {
     private final Timer flightTimer = new Timer(); //used to know how long the player has been flying in total (used for speed boost)
     private final Timer burstFlightTimer = new Timer(); //used to know how long the player has been flying in the current deployment
     private final Timer noFlightTimer = new Timer(); //used to know how long the player has not been flying
-    private final Timer clickTimer = new Timer();
     private double lastSpeed = 0f; //used for acceleration
     private float timerSpeed = 1f; //controls game timer speed
     private boolean isElytraGliding = false;
+    private boolean deployedThisTick = false;
+    private boolean redeploying = false;
 
     @Subscribe(stage = Stage.ALL)
     public void onMove(EventMove event) {
@@ -96,7 +98,11 @@ public class NCPElytraFly extends ToggleableModule {
         }
 
         final long timeSinceLastRubberband = System.currentTimeMillis() - this.lastLagBack;
-        boolean deployedThisTick = false;
+        deployedThisTick = false;
+
+        if(redeploying){
+            event.setY(0);
+        }
 
         deploy:
         {
@@ -106,7 +112,7 @@ public class NCPElytraFly extends ToggleableModule {
                 final boolean attemptTakeoff = this.takeOff.getValue();
 
                 if(redeploy) {
-                    if(this.redeploy(false)) {
+                    if(this.redeploy()) {
                         //  ChatUtils.print(System.currentTimeMillis() + " sent redeploy");
                         this.burstFlightTimer.reset();
                     }
@@ -139,27 +145,17 @@ public class NCPElytraFly extends ToggleableModule {
 
                 return;
             }
-            else{
-                final boolean redeploy = this.autoRedeploy.getValue() && timeSinceLastRubberband < 150L;
-                if(redeploy){
-                    if(this.redeploy(true)){
-                        this.burstFlightTimer.reset();
-                        deployedThisTick = true;
-                        event.setY(0);
-                    }
-                    break deploy;
-                }
-            }
         }
 
         if(!deployedThisTick) {
-            this.timerSpeed = this.activeTimerSpeed.getValue();
+            redeploying = false;
             //ChatUtils.print("Set active timer speed 2 to " + timerSpeed);
+            //this.timerSpeed = this.activeTimerSpeed.getValue();
             this.noFlightTimer.reset();
         }
 
         //disables moving while redeploying / stops all motion and update packets while redeploying
-        if(this.autoRedeployWait.getValue() && !this.isElytraGliding && System.currentTimeMillis() - this.lastLagBack < 2000L) {
+        if(this.autoRedeployWait.getValue() && (!this.isElytraGliding || redeploying) && timeSinceLastRubberband < 2000L) {
            // ChatUtils.print("test1");
             event.setCancelled(true);
             return;
@@ -167,7 +163,6 @@ public class NCPElytraFly extends ToggleableModule {
 
 
         //by this point we are actively flying (or its the first tick after we sent fallfly packet
-        //ChatUtils.print(System.currentTimeMillis() + " fly " + event.getY());
 
         //cancel vanilla motion
         event.setMotion(Vec3.ZERO);
@@ -176,7 +171,6 @@ public class NCPElytraFly extends ToggleableModule {
 
         if(this.rubberbandMotionCancel.getValue()) {
             if(mc.player.isFallFlying() && this.burstFlightTimer.passed(1000) && System.currentTimeMillis() - this.lastLagBack < 300L) {
-              //  ChatUtils.print("cancelled move event");
                 event.setCancelled(true);
                 return;
             }
@@ -226,7 +220,7 @@ public class NCPElytraFly extends ToggleableModule {
         }
 
         //disables moving while redeploying / stops all motion and update packets while redeploying
-        if(this.autoRedeployWait.getValue() && !this.isElytraGliding && System.currentTimeMillis() - this.lastLagBack < 2000L) {
+        if(this.autoRedeployWait.getValue() && (!this.isElytraGliding || redeploying) && System.currentTimeMillis() - this.lastLagBack < 2000L) {
             event.setCancelled(true);
             return;
         }
@@ -239,15 +233,15 @@ public class NCPElytraFly extends ToggleableModule {
             }
         }
 
-        float pitch = -4f;
+        float pitch = this.pitch.getValue();
 
-        if(this.lastSpeed >= 11) {
-            pitch = -1f;
-        } else if(this.lastSpeed >= 8.3) {
-            pitch = -1.3f;
-        } else if(this.lastSpeed >= 5.8) {
-            pitch = -1.5f;
-        }
+//        if(this.lastSpeed >= 11) {
+//            pitch = -1f;
+//        } else if(this.lastSpeed >= 8.3) {
+//            pitch = -1.3f;
+//        } else if(this.lastSpeed >= 5.8) {
+//            pitch = -1.5f;
+//        }
 
         event.setPitch(pitch);
     }
@@ -283,6 +277,16 @@ public class NCPElytraFly extends ToggleableModule {
             this.lastLagBack = System.currentTimeMillis();
         }
 
+        if (this.redeployOnLag.getValue() && !deployedThisTick) {
+
+            if (this.redeploy()) {
+                this.burstFlightTimer.reset();
+            }
+
+            deployedThisTick = true;
+        }
+
+
         //this.lastSpeed = 0f;
     }
 
@@ -302,15 +306,10 @@ public class NCPElytraFly extends ToggleableModule {
         if(fallFlying) {
             //set active timer speed immediately after server tells us we are in elytra flight
             this.timerSpeed = this.activeTimerSpeed.getValue();
-            //ChatUtils.print("Set active timer speed 1" );
         } else {
-            if(this.burstFlightTimer.passed(1000)) {
-               // ChatUtils.print("You were flying for " + this.burstFlightTimer.getTime() + "ms");
-            }
             this.burstFlightTimer.reset();
             this.flightTimer.reset();
         }
-
         this.isElytraGliding = fallFlying;
     }
 
@@ -357,6 +356,7 @@ public class NCPElytraFly extends ToggleableModule {
         this.timerSpeed = this.takeOffTimerSpeed.getValue();
 
         if(mc.player.tryToStartFallFlying()) {
+            ChatUtils.print("TAKING OFF");
             mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
             return true;
         }
@@ -367,38 +367,35 @@ public class NCPElytraFly extends ToggleableModule {
     /**
      * This method is called when the server stops your elytrafly state and we need to redeploy
      */
-    private boolean redeploy(boolean test) {
-
+    private boolean redeploy() {
         //apply timer speed
+        redeploying = true;
         this.timerSpeed = this.autoRedeployTimerSpeed.getValue();
-        //ChatUtils.print("Set redeploy timer speed to " + this.timerSpeed);
-
-        if(!reClickElytra()) {
-            return false;
+        reElytra();
+        if(!isElytraGliding || !mc.player.isFallFlying()) {
+            if (this.noFlightTimer.passed(this.autoRedeployDelay.getValue() * 1000) /*&& mc.player.tryToStartFallFlying() */) {
+                ChatUtils.print("REDEPLOYING");
+                mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+                return true;
+            }
         }
-
-
-
-        if(this.noFlightTimer.passed(this.autoRedeployDelay.getValue() * 1000) && mc.player.tryToStartFallFlying()) {
-            mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
-            return true;
-        }
-
-       // ChatUtils.print(System.currentTimeMillis() + " redeploy waiting for delay");
 
         return false;
     }
-    private boolean reClickElytra(){
-        if(clickTimer.passed(400)){
-            timerSpeed = autoRedeployTimerSpeed.getValue();
-            mc.player.stopFallFlying();
+    private void reElytra(){
+        if(!isElytraGliding || !mc.player.isFallFlying()) return;
+
+        if(isElytraGliding || mc.player.isFallFlying()) {
+            //mc.player.stopFallFlying();
             mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
-            InventoryUtils.clickSlot(6, false);
-            InventoryUtils.clickSlot(6, false);
-            clickTimer.reset();
-            return true;
         }
-        return false;
+    }
+    public static void clickSlot(int slotId, boolean shiftClick) {
+        if(mc.player == null || mc.gameMode == null) {
+            return;
+        }
+
+        mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, slotId, 0, shiftClick ? ClickType.QUICK_MOVE : ClickType.PICKUP, mc.player);
     }
 
 }
