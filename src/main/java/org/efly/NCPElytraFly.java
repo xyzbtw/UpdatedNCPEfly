@@ -356,7 +356,6 @@ public class NCPElytraFly extends ToggleableModule {
         this.timerSpeed = this.takeOffTimerSpeed.getValue();
 
         if(mc.player.tryToStartFallFlying()) {
-            ChatUtils.print("TAKING OFF");
             mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
             return true;
         }
@@ -374,7 +373,6 @@ public class NCPElytraFly extends ToggleableModule {
         reElytra();
         if(!isElytraGliding || !mc.player.isFallFlying()) {
             if (this.noFlightTimer.passed(this.autoRedeployDelay.getValue() * 1000) /*&& mc.player.tryToStartFallFlying() */) {
-                ChatUtils.print("REDEPLOYING");
                 mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
                 return true;
             }
