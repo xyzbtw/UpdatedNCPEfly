@@ -384,16 +384,8 @@ public class NCPElytraFly extends ToggleableModule {
         if(!isElytraGliding || !mc.player.isFallFlying()) return;
 
         if(isElytraGliding || mc.player.isFallFlying()) {
-            //mc.player.stopFallFlying();
             mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
         }
-    }
-    public static void clickSlot(int slotId, boolean shiftClick) {
-        if(mc.player == null || mc.gameMode == null) {
-            return;
-        }
-
-        mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, slotId, 0, shiftClick ? ClickType.QUICK_MOVE : ClickType.PICKUP, mc.player);
     }
 
 }
